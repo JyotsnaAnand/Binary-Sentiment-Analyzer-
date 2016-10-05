@@ -1,0 +1,243 @@
+import re
+import nltk
+import enchant
+
+#start spellcheck
+def spellcheck(line):
+    #replace words with improper spelling with words which are suggested
+    d = enchant.Dict("en_US")
+    word=line.split()
+    for i in word:
+        if(d.check(i)==False):
+            x=d.suggest(i)
+            #if there is atleast a single suggestion for the word replace the word.
+            if(x!=[]):
+                line=re.sub(i,x[0],line)
+    return line
+#end
+
+#start dictionary
+def dictionary(line):
+    #performs spellcheck to replace often used abbreviations in social media with their actual English spellings. E.g: 2 is replaced with to
+    d={'u':'you','r':'are','2':'to','s':'yes','hs':'has','imp':'important','wanna':'want to','ur':'your'}
+    for word in line:
+        if word in d:
+            line=re.sub(word,d[word],line)
+    return line
+
+#start process
+def process(lines):
+    # preprocess the data
+
+    #Convert to lower case
+    lines = lines.lower()
+    #Remove additional white spaces
+    lines = re.sub('[\s]+', ' ', lines)
+    #Replace #word with word
+    lines = re.sub(r'#([^\s]+)', r'\1', lines)
+    #trim
+    lines = lines.strip('\'"')
+    lines=re.sub('<pros>','',lines)
+    lines=re.sub('<cons>','',lines)
+    lines=re.sub('</cons>','',lines)
+    lines=re.sub('</pros>','',lines)
+    lines=re.sub('/',' ',lines)
+    lines=re.sub('!','',lines)
+    lines=re.sub(',',' ',lines)
+    #perform spellcheck
+    lines=spellcheck(lines)
+    lines=dictionary(lines)
+    return lines
+#end
+
+#processing the unseen test document.
+def processtest_data(line):
+    #Convert to lower case
+    line = line.lower()
+    #Convert www.* or https?://* to URL
+    line = re.sub('((www\.[\s]+)|(https?://[^\s]+))','URL',line)
+    #Convert @username to AT_USER
+    line = re.sub('@[^\s]+','AT_USER',line)
+    #Remove additional white spaces
+    line = re.sub('[\s]+', ' ', line)
+    #Replace #word with word
+    line= re.sub(r'#([^\s]+)', r'\1', line)
+    #trim
+    line = line.strip('\'"')
+    return line
+#end
+
+#initialize stopWords
+stopWords = []
+
+#start replaceTwoOrMore
+def replaceTwoOrMore(s):
+    #look for 2 or more repetitions of character and replace with the character itself
+    pattern = re.compile(r"(.)\1{1,}", re.DOTALL)
+    return pattern.sub(r"\1\1", s)
+#end
+
+#start getStopWordList
+def getStopWordList(stopWordListFileName):
+
+    #read the stopwords file and build a list
+    stopWords = []
+    #'AT_USER' AND 'URL' are removed as they don't bring out any sentiment.
+    stopWords.append('AT_USER')
+    stopWords.append('URL')
+    fp = open(stopWordListFileName, 'r')
+    line = fp.readline()
+    while line:
+        word = line.strip()
+        stopWords.append(word)
+        line = fp.readline()
+    fp.close()
+    return stopWords
+#end
+
+#start getfeatureVector
+def getFeatureVector(lines):
+    #returns a list of words not present in the stopwords list
+
+    fout = open('C:/miniproj/output.txt', 'a')
+    featureVector = []
+    #split lines into words
+    words = lines.split()
+    for w in words:
+        #replace two or more with two occurrences
+        w = replaceTwoOrMore(w)
+        #strip punctuation
+        w = w.strip('\'"?,.')
+        #ignore if it is a stop word
+        if(w in stopWords):
+            continue
+        else:
+            fout.write(w)
+            fout.write(' ')
+            featureVector.append(w.lower())
+    return featureVector
+#end
+
+#start extrat_features
+def extract_features(line):
+#extracts features which is used to form the training data.
+    data_words=set(line)
+    features={}
+    for word in featureList:
+        features['contains(%s)' % word]=(word in data_words)
+    return features
+#end
+
+#start tagg
+def tagg(line):
+    #removes all unwanted header information obtained from the test document
+ flag=0
+ for i in range(len(line)-1):
+    if(line[i]=='<'):
+        flag=1
+    if(line[i]=='>'):
+        flag=0
+    #if not a header content write it into a file
+    elif(flag!=1 and line[i]!='<'):
+        fout.write(line[i])
+#end
+
+#program begins here.
+
+#opens the document with positive sentences and reads the first line
+fpro = open('C:/miniproj/pro.txt', 'r')
+line = fpro.readline()
+
+#Read the file of stopwords and process it.
+st = open('C:/miniproj/stopwordsList.txt', 'r')
+stopWords = getStopWordList('C:/miniproj/stopwordsList.txt')
+
+#initialize a dara array to hold each featurevector along with its specific sentiment.
+datas=[]
+
+#process each line in the prosdataSet
+while line:
+    sentiment='positive'
+    processedline = process(line)
+    featureVector = getFeatureVector(processedline)
+    print featureVector
+    datas.append((featureVector,sentiment))
+    line = fpro.readline()
+
+#reads the document with negative sentences and process it.
+fcon=open('C:/miniproj/cons.txt','r')
+line=fcon.readline()
+while line:
+    sentiment='negative'
+    processedline = process(line)
+    featureVector = getFeatureVector(processedline)
+    print featureVector
+    datas.append((featureVector,sentiment))
+    line = fcon.readline()
+
+#initialize featurelist
+featureList=[]
+
+#reads the file of all the words forming the featurevector and process it.
+f=open('C:/miniproj/output.txt','r')
+line=f.readline()
+words=line.split()
+for w in words:
+    featureList.append(w)
+
+#performs the training using the nltk package.
+training_set=nltk.classify.util.apply_features(extract_features,datas)
+
+#maximum entropy classifier is implemented.
+MaxEntClassifier=nltk.classify.MaxentClassifier.train(training_set,'GIS',trace=3,encoding=None,labels=None,sparse=True,gaussian_prior_sigma=0,max_iter=10)
+
+fout = open('C:/miniproj/output1.txt', 'a')
+
+#open the test document and process them.
+f1=open('C:/miniproj/data1.txt','r')
+line=f1.readline()
+tagg(line)
+while line:
+    line=f1.readline()
+    tagg(line)
+
+#open the test document and process them.
+f2=open('C:/miniproj/data2.txt','r')
+line=f2.readline()
+tagg(line)
+while line:
+    line=f2.readline()
+    tagg(line)
+
+#open the test document and process them.
+f3=open('C:/miniproj/data3.txt','r')
+line=f3.readline()
+tagg(line)
+while line:
+    line=f3.readline()
+    tagg(line)
+
+#open the test document and process them.
+f4=open('C:/miniproj/data4.txt','r')
+line=f4.readline()
+tagg(line)
+while line:
+    line=f4.readline()
+    tagg(line)
+
+#open the test document and process them.
+f5=open('C:/miniproj/data5.txt','r')
+line=f5.readline()
+tagg(line)
+while line:
+    line=f5.readline()
+    tagg(line)
+
+#content of all the test documents are stored in output1, which is read and stored in test_doc
+f6=open('C:/miniproj/output1.txt','r')
+test_doc=f6.readline()
+
+#preprocess the test_doc before testing.
+processedtestline=processtest_data(test_doc)
+print MaxEntClassifier.classify(extract_features(getFeatureVector(processedtestline)))
+
