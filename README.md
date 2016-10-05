@@ -3,4 +3,4 @@ This repository has my implementation of a Binary Sentiment Analyzer which can c
 
 The language used to implement the Sentiment Analyzer is Python. Python features an extensive library called 'NLTK' (Natural Language Tool Kit). NLTK has tools that are very useful for text processing, sentence and word classification. 
 
-The 'Maximum Entropy Classifier'was used to train the model and classify input as positive/negative. Online reviews sourced from web portals were used for training and testing. 
+The 'Maximum Entropy Classifier' was used to train the model and classify input as positive/negative. Online reviews sourced from web portals were used for training and testing. 
